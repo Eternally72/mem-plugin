@@ -1,0 +1,101 @@
+name: mem-plugin
+
+services:
+  postgres:
+    # Existing local image: PostgreSQL 17.10 + pgvector 0.8.6; immutable digest.
+    image: pgvector/pgvector@sha256:7ae6051efd0e60444282c27c7e141af07f322ce033300e727a49c3dd11075e38
+    pull_policy: never
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mem_plugin}
+      POSTGRES_DB: ${POSTGRES_DB:-mem_plugin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Initialize the private .env first}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  mem-plugin:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      MEM_PLUGIN_HOST: 0.0.0.0
+      MEM_PLUGIN_PORT: "8000"
+      ARCHIVE_DIR: /app/data/archive
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Initialize the private .env first}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - archive-data:/app/data/archive
+
+  migrate:
+    profiles: ["app", "worker", "scheduler"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Initialize the private .env first}
+    command: ["alembic", "upgrade", "head"]
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    profiles: ["worker"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Initialize the private .env first}
+      ARCHIVE_DIR: /app/data/archive
+    volumes:
+      - archive-data:/app/data/archive
+    command: ["mem-plugin-worker"]
+    healthcheck:
+      disable: true
+    stop_grace_period: 45s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  scheduler:
+    profiles: ["scheduler"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Initialize the private .env first}
+    command: ["mem-plugin-scheduler"]
+    healthcheck:
+      disable: true
+    stop_grace_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  archive-data:

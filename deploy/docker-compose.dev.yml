@@ -1,0 +1,4 @@
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${MEM_PLUGIN_POSTGRES_PORT:-55433}:5432"

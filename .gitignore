@@ -1,0 +1,25 @@
+# Local development notes, tools and release preparation are not published.
+/dev/
+# Local entry point for development instructions stored in dev/AGENTS.md.
+/AGENTS.md
+# Publish unit tests only; integration suites and datasets live under dev/.
+/tests/*
+!/tests/unit/
+
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+.env
+.env.*
+!.env.example
+/data/
+*.sqlite3
+*.sqlite3-*
+.DS_Store

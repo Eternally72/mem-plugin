@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mem-plugin"
+version = "1.0.0"
+description = "A simple personal-agent memory service over MCP Streamable HTTP."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+postgres = ["sqlalchemy>=2.0,<2.2", "psycopg[binary]>=3.2,<4", "alembic>=1.16,<2", "pgvector>=0.4,<0.5"]
+mcp = [
+    "fastmcp==4.1.6",
+    "pydantic>=2.11,<3",
+    "starlette>=1.10,<2",
+    "uvicorn>=0.54,<1",
+    "python-dotenv>=1.2,<2",
+]
+
+[project.scripts]
+mem-plugin = "mem_plugin.bootstrap.cli:main"
+mem-plugin-api = "mem_plugin.bootstrap.api:main"
+mem-plugin-worker = "mem_plugin.bootstrap.worker:main"
+mem-plugin-scheduler = "mem_plugin.bootstrap.scheduler:main"
+mem-plugin-test = "mem_plugin.bootstrap.test_run:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,11 @@
+interface:
+  display_name: "mem-plugin 记忆"
+  short_description: "Recall, save, correct, and delete personal agent memories."
+  default_prompt: "使用 $mem-plugin 按当前请求读取或维护记忆。"
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "mem-plugin"
+      description: "mem-plugin 记忆服务"
+      transport: "streamable_http"
