@@ -1,5 +1,7 @@
 """Explicit commit; every uncommitted exit rolls back and closes the connection."""
 
+from dataclasses import replace
+
 from sqlalchemy.exc import SQLAlchemyError
 
 from mem_plugin.engine.errors import MemoryStorageError
@@ -24,8 +26,11 @@ class PostgresUnitOfWork:
         access: AccessContext,
         embedding_model: str = "qwen3.7-text-embedding-flash",
         embedding_dimension: int = 1024,
+        *,
+        l0_only: bool = False,
     ):
-        self.database, self.access = database, access
+        self.database = database
+        self.access = replace(access, l0_only=True) if l0_only else access
         self.embedding_model, self.embedding_dimension = embedding_model, embedding_dimension
 
     def __enter__(self):

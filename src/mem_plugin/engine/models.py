@@ -23,8 +23,11 @@ class AccessContext:
     agent_id: str
     namespace: str = "default"
     domains: frozenset[str] = frozenset()
+    l0_only: bool = False
 
     def __post_init__(self):
+        if type(self.l0_only) is not bool:
+            raise InvalidMemoryInput("l0_only must be boolean")
         if not isinstance(self.domains, (frozenset, set, tuple, list)):
             raise InvalidMemoryInput("domains must be a collection of authorized names")
         for value in (self.user_id, self.agent_id, self.namespace, *self.domains):

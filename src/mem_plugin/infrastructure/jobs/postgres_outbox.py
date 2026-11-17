@@ -135,8 +135,10 @@ class PostgresTaskQueue:
         *,
         access: AccessContext | None = None,
         exclude_test_runs: bool = False,
+        l0_only: bool = False,
     ):
         self.engine = engine
+        self.l0_only = l0_only
         self.access, self.exclude_test_runs = access, exclude_test_runs
 
     def claim(
@@ -159,7 +161,11 @@ class PostgresTaskQueue:
                     text("""WITH candidate AS (
                 SELECT id FROM outbox_events WHERE event_type=ANY(CAST(:types AS text[]))
                 AND (:all_scopes OR (user_id=:user AND namespace=:ns AND agent_id=:agent))
-                AND (NOT :exclude_test OR left(namespace,9)<>'test_run_') AND (
+                AND (NOT :exclude_test OR left(namespace,9)<>'test_run_')
+                AND (NOT :l0_only OR EXISTS (
+                    SELECT 1 FROM memory_nodes n WHERE n.id=outbox_events.node_id
+                    AND n.user_id=outbox_events.user_id AND n.namespace=outbox_events.namespace
+                    AND n.level=0)) AND (
                     (status='pending' AND available_at<=clock_timestamp()) OR
                     (status='running' AND locked_until<=clock_timestamp()))
                 ORDER BY available_at,created_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
@@ -177,6 +183,7 @@ class PostgresTaskQueue:
                         "ns": self.access.namespace if self.access else "",
                         "agent": self.access.agent_id if self.access else "",
                         "exclude_test": self.exclude_test_runs,
+                        "l0_only": self.l0_only,
                     },
                 )
                 .mappings()

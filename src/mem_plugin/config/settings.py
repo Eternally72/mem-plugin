@@ -215,6 +215,14 @@ class EngineSettings:
     rrf_k: int = 60
     trigram_threshold: float = 0.2
     rerank_enabled: bool = False
+    l0_only: bool = True
+
+
+def _l0_only(env):
+    value = env.get("MEM_PLUGIN_L0_ONLY", "true").lower()
+    if value not in {"true", "false"}:
+        raise ConfigurationError("MEM_PLUGIN_L0_ONLY must be true or false")
+    return value == "true"
 
 
 def load_engine_settings(*, environ=None, env_file=None) -> EngineSettings:
@@ -228,6 +236,7 @@ def load_engine_settings(*, environ=None, env_file=None) -> EngineSettings:
         _number(env, "RETRIEVAL_RRF_K", 60, int, 1, 10000),
         _number(env, "RETRIEVAL_TRIGRAM_THRESHOLD", 0.2, float, 0.01, 1),
         enabled == "true",
+        _l0_only(env),
     )
 
 
@@ -388,7 +397,7 @@ def load_consolidation_settings(*, environ=None, env_file=None):
     if enabled not in {"true", "false"}:
         raise ConfigurationError("CONSOLIDATION_ENABLED must be true or false")
     return ConsolidationSettings(
-        enabled == "true",
+        enabled == "true" and not _l0_only(env),
         tuple(
             _number(env, f"CONSOLIDATION_L{level}_MIN_SOURCES", 2, int, 2, 100)
             for level in range(1, 4)

@@ -25,10 +25,12 @@ def parameters(access: AccessContext) -> dict[str, object]:
         "namespace": access.namespace,
         "agent_id": access.agent_id,
         "domains": list(access.domains),
+        "l0_only": access.l0_only,
     }
 
 
-VISIBLE = """user_id=:user_id AND namespace=:namespace AND (
+VISIBLE = """user_id=:user_id AND namespace=:namespace
+    AND (NOT :l0_only OR level=0) AND (
     scope='user_global' OR (scope='agent_private' AND agent_id=:agent_id)
     OR (scope='domain_shared' AND domain=ANY(CAST(:domains AS text[]))))"""
 
@@ -54,6 +56,8 @@ class NodeRepository:
         )
 
     def insert(self, node: MemoryNode) -> MemoryNode:
+        if self.access.l0_only and node.level != 0:
+            raise MemoryAccessDenied("L0-only access cannot create derived memories")
         if (node.user_id, node.namespace, node.agent_id) != (
             self.access.user_id,
             self.access.namespace,

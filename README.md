@@ -1,5 +1,7 @@
 # mem-plugin
 
+> **L0 消融实验分支：** 基于 `v1.0.0`，默认 `MEM_PLUGIN_L0_ONLY=true`。仅使用 L0 记忆和既有语义关联，停用 L1–L3 整合与访问，不删除高层代码、表或历史数据。下文的四层架构描述保留为对照基线；实验应新建隔离轮次。
+
 面向 Personal Agent 的独立记忆服务，提供基于 MCP Streamable HTTP 的持久化记忆接口。
 
 系统以原子记忆为基础，结合语义关联、L0–L3 层级整合与混合检索，为 Agent 提供可追溯的历史信息。Python 服务通过 uv 在本机运行，PostgreSQL 与 pgvector 通过 Docker 部署。
@@ -92,6 +94,7 @@ uv run --no-sync python scripts/init_env.py
 | `MEM_PLUGIN_NAMESPACES`、`MEM_PLUGIN_DOMAINS` | namespace 白名单与领域授权 |
 | `EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL`、`EMBEDDING_DIMENSION` | 百炼向量服务配置 |
 | `LLM_PROVIDER` | 选择 `deepseek` 或 `bailian` |
+| `MEM_PLUGIN_L0_ONLY` | 本实验分支默认 `true`；关闭层级整合并限定服务端只能访问 L0 |
 | `DEEPSEEK_LLM_BASE_URL`、`DEEPSEEK_LLM_API_KEY`、`DEEPSEEK_LLM_MODEL` | DeepSeek LLM 配置 |
 | `BAILIAN_LLM_BASE_URL`、`BAILIAN_LLM_API_KEY`、`BAILIAN_LLM_MODEL` | 百炼 LLM 配置 |
 | `RETRIEVAL_RERANK_ENABLED` | 可选重排开关；启用时填写独立的 `RERANK_*` 配置 |

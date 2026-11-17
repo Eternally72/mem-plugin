@@ -88,6 +88,7 @@ def create_note_service(
     from mem_plugin.infrastructure.persistence.postgres.unit_of_work import PostgresUnitOfWork
     from mem_plugin.observability.tracing import Tracer
 
+    l0_only = load_engine_settings(environ=environ).l0_only
     database = Database(database_url)
     try:
         embedding = load_embedding_settings(environ=environ)
@@ -96,7 +97,9 @@ def create_note_service(
         database.check_schema()
 
         def uow(access):
-            return PostgresUnitOfWork(database, access, embedding.model, embedding.dimension)
+            return PostgresUnitOfWork(
+                database, access, embedding.model, embedding.dimension, l0_only=l0_only
+            )
 
         tracer = Tracer(PostgresTraceSink(database.engine))
         retrieval = RetrievalService(
@@ -110,6 +113,7 @@ def create_note_service(
             reranker=RerankClient(rerank.provider, rerank.base_url, rerank.api_key, rerank.model)
             if use_models and policy.rerank_enabled and rerank.api_key
             else None,
+            l0_only=l0_only,
             policy=RetrievalPolicy(
                 policy.candidate_limit,
                 policy.rrf_k,
@@ -120,6 +124,7 @@ def create_note_service(
         yield NoteService(
             uow,
             tracer,
+            l0_only=l0_only,
             retrieval=retrieval,
             max_note_characters=policy.max_note_characters,
             consolidation_enabled=load_consolidation_settings(environ=environ).enabled,
@@ -141,6 +146,7 @@ def create_worker(database_url: str, *, environ=None, task_access=None):
         ConfigurationError,
         load_consolidation_settings,
         load_embedding_settings,
+        load_engine_settings,
         load_graph_settings,
         load_lifecycle_settings,
         load_llm_settings,
@@ -174,13 +180,16 @@ def create_worker(database_url: str, *, environ=None, task_access=None):
         import logging
 
         logging.getLogger(__name__).warning("graph_jobs_waiting_for_llm_configuration")
+    l0_only = load_engine_settings(environ=environ).l0_only
     database = Database(database_url)
     try:
         database.check_schema()
         tracer = Tracer(PostgresTraceSink(database.engine), process_name="worker")
 
         def uow(access):
-            return PostgresUnitOfWork(database, access, embedding.model, embedding.dimension)
+            return PostgresUnitOfWork(
+                database, access, embedding.model, embedding.dimension, l0_only=l0_only
+            )
 
         service = (
             EmbeddingService(
@@ -223,7 +232,10 @@ def create_worker(database_url: str, *, environ=None, task_access=None):
         )
         yield Worker(
             PostgresTaskQueue(
-                database.engine, access=task_access, exclude_test_runs=task_access is None
+                database.engine,
+                access=task_access,
+                exclude_test_runs=task_access is None,
+                l0_only=l0_only,
             ),
             service,
             tracer,
@@ -267,6 +279,7 @@ def create_scheduler(database_url: str, *, namespace: str | None = None, environ
         ConfigurationError,
         load_consolidation_settings,
         load_embedding_settings,
+        load_engine_settings,
         load_lifecycle_settings,
         load_scheduler_settings,
     )
@@ -286,12 +299,15 @@ def create_scheduler(database_url: str, *, namespace: str | None = None, environ
     if namespace is not None and namespace not in settings.namespaces:
         raise ConfigurationError("scheduler namespace is not authorized")
     embedding = load_embedding_settings(environ=environ)
+    l0_only = load_engine_settings(environ=environ).l0_only
     database = Database(database_url)
     try:
         database.check_schema()
         tracer = Tracer(PostgresTraceSink(database.engine), process_name="scheduler")
         service = SchedulingService(
-            lambda ctx: PostgresUnitOfWork(database, ctx, embedding.model, embedding.dimension),
+            lambda ctx: PostgresUnitOfWork(
+                database, ctx, embedding.model, embedding.dimension, l0_only=l0_only
+            ),
             tracer,
         )
         contexts = tuple(
@@ -300,7 +316,9 @@ def create_scheduler(database_url: str, *, namespace: str | None = None, environ
         )
 
         def uow(ctx):
-            return PostgresUnitOfWork(database, ctx, embedding.model, embedding.dimension)
+            return PostgresUnitOfWork(
+                database, ctx, embedding.model, embedding.dimension, l0_only=l0_only
+            )
 
         yield Scheduler(
             service,

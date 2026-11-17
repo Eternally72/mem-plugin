@@ -52,10 +52,12 @@ class RetrievalService:
         embedding: EmbeddingProvider | None = None,
         reranker: RerankProvider | None = None,
         policy: RetrievalPolicy | None = None,
+        l0_only: bool = False,
     ):
         self._uow, self._tracer = uow, tracer
         self._embedding, self._reranker = embedding, reranker
         self._policy = policy or RetrievalPolicy()
+        self._l0_only = l0_only
 
     def recall(
         self,
@@ -77,6 +79,11 @@ class RetrievalService:
             if mode not in {"literal", "keyword", "hybrid"}:
                 raise InvalidMemoryInput("mode must be literal, keyword or hybrid")
             filters = filters or SearchFilters()
+            if self._l0_only:
+                if filters.level not in (None, 0):
+                    raise InvalidMemoryInput("L0-only experiment accepts only level=0 or no level")
+                filters = replace(filters, level=0)
+            trace.attributes["l0_only"] = self._l0_only
             filters = replace(
                 filters,
                 attributes=structured_fields(filters.attributes),

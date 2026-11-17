@@ -59,12 +59,14 @@ class NoteService:
         max_note_characters: int = 16000,
         consolidation_enabled: bool = False,
         lifecycle=None,
+        l0_only: bool = False,
     ):
         self._uow = uow_factory
         self._tracer = tracer
-        self._retrieval = retrieval or RetrievalService(uow_factory, tracer)
+        self._retrieval = retrieval or RetrievalService(uow_factory, tracer, l0_only=l0_only)
+        self._l0_only = l0_only
         self._max_note_characters = max_note_characters
-        self._consolidation_enabled = consolidation_enabled
+        self._consolidation_enabled = consolidation_enabled and not l0_only
         self._lifecycle = lifecycle
 
     def _effects(
@@ -192,7 +194,11 @@ class NoteService:
             if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
                 raise InvalidMemoryInput("limit must be 1..100")
             with self._uow(access) as uow:
-                return uow.nodes.search(query.strip(), limit)
+                return (
+                    uow.nodes.search(query.strip(), limit, SearchFilters(level=0))
+                    if self._l0_only
+                    else uow.nodes.search(query.strip(), limit)
+                )
 
     def recall(
         self,
@@ -368,6 +374,8 @@ class NoteService:
     def link_hierarchy(
         self, access: AccessContext, child_id: UUID | str, parent_id: UUID | str
     ) -> None:
+        if self._l0_only:
+            raise InvalidMemoryInput("L0-only experiment disables hierarchy writes")
         with self._tracer.span(
             "link_hierarchy", access.user_id, access.namespace, access.agent_id
         ) as trace:
@@ -454,6 +462,8 @@ class NoteService:
         scope: Scope = Scope.AGENT_PRIVATE,
         domain: str = "general",
     ) -> MemoryNode:
+        if self._l0_only:
+            raise InvalidMemoryInput("L0-only experiment disables hierarchy writes")
         with self._tracer.span(
             "derive", access.user_id, access.namespace, access.agent_id
         ) as trace:
@@ -493,6 +503,8 @@ class NoteService:
         source_ids: tuple[UUID, ...],
         reason: str,
     ) -> MemoryNode:
+        if self._l0_only:
+            raise InvalidMemoryInput("L0-only experiment disables hierarchy writes")
         with self._tracer.span(
             "publish", access.user_id, access.namespace, access.agent_id
         ) as trace:
