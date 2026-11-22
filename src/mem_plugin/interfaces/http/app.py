@@ -16,7 +16,10 @@ def create_app(
     memory: NoteAPI, *, identity: ToolIdentity, mcp_url: str, token: str, resolve_scoped=None
 ) -> Starlette:
     verifier = SharedTokenVerifier(
-        token, mcp_url, user_id=identity.principal.user_id, agent_id=identity.principal.agent_id,
+        token,
+        mcp_url,
+        user_id=identity.principal.user_id,
+        agent_id=identity.principal.agent_id,
         resolve_scoped=resolve_scoped,
     )
     if resolve_scoped is not None:

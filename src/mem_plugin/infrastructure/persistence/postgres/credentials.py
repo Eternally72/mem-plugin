@@ -65,10 +65,16 @@ class CredentialStore:
     def revoke(self, label):
         try:
             with self.engine.begin() as connection:
-                return connection.execute(text("""
+                return (
+                    connection.execute(
+                        text("""
                     UPDATE mcp_credentials SET revoked_at=clock_timestamp()
                     WHERE label=:label AND revoked_at IS NULL
-                """), {"label": label}).rowcount == 1
+                """),
+                        {"label": label},
+                    ).rowcount
+                    == 1
+                )
         except SQLAlchemyError:
             raise MemoryStorageError("unable to revoke MCP credential") from None
 
@@ -77,22 +83,35 @@ class CredentialStore:
             return None
         try:
             with self.engine.connect() as connection:
-                return connection.execute(text("""
+                return (
+                    connection.execute(
+                        text("""
                     SELECT label, namespace, expires_at FROM mcp_credentials
                     WHERE token_digest=:digest AND revoked_at IS NULL
                         AND expires_at > clock_timestamp()
-                """), {"digest": _digest(token)}).mappings().one_or_none()
+                """),
+                        {"digest": _digest(token)},
+                    )
+                    .mappings()
+                    .one_or_none()
+                )
         except SQLAlchemyError:
             raise MemoryStorageError("unable to validate MCP credential") from None
 
     def contexts(self):
         try:
             with self.engine.connect() as connection:
-                namespaces = connection.execute(text("""
+                namespaces = (
+                    connection.execute(
+                        text("""
                     SELECT namespace FROM mcp_credentials
                     WHERE revoked_at IS NULL AND expires_at > clock_timestamp()
                     ORDER BY namespace
-                """)).scalars().all()
+                """)
+                    )
+                    .scalars()
+                    .all()
+                )
         except SQLAlchemyError:
             raise MemoryStorageError("unable to list MCP namespaces") from None
         return tuple(AccessContext(namespace, namespace, namespace) for namespace in namespaces)

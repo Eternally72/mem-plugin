@@ -27,10 +27,10 @@ def terminal_line(line: str, *, role: str | None = None) -> str:
     if not match:
         return prefix + line
     logger, timestamp, level = match.groups()
-    message = line[match.end():]
+    message = line[match.end() :]
     event = EVENT.match(message)
     if event:
-        message = color(event[0], 36) + message[event.end():]
+        message = color(event[0], 36) + message[event.end() :]
     severity = color(level, LEVELS.get(level, 37))
     return f"{prefix}{color(logger, 94)} {color(timestamp, 90)} {severity} {message}"
 

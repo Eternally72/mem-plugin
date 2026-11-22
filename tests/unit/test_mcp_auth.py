@@ -42,8 +42,13 @@ def test_same_mcp_endpoint_binds_tool_calls_to_each_bearer():
     memory = Mock()
     memory.recall.return_value = SimpleNamespace(mode="keyword", degraded_reasons=(), hits=())
     identity = ToolIdentity(AccessContext("owner", "local"), frozenset({"default"}))
-    app = create_app(memory, identity=identity, mcp_url="http://testserver/mcp",
-                     token="owner-token", resolve_scoped=records.get)
+    app = create_app(
+        memory,
+        identity=identity,
+        mcp_url="http://testserver/mcp",
+        token="owner-token",
+        resolve_scoped=records.get,
+    )
 
     async def search(client, bearer, namespace=None):
         arguments = {"query": "marker", "mode": "keyword"}
@@ -51,23 +56,31 @@ def test_same_mcp_endpoint_binds_tool_calls_to_each_bearer():
             arguments["namespace"] = namespace
         return await client.post(
             "/mcp",
-            headers={"Authorization": f"Bearer {bearer}",
-                     "Accept": "application/json, text/event-stream",
-                     "MCP-Protocol-Version": "2025-06-18"},
-            json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                  "params": {"name": "memory.search", "arguments": arguments}},
+            headers={
+                "Authorization": f"Bearer {bearer}",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Protocol-Version": "2025-06-18",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "memory.search", "arguments": arguments},
+            },
         )
 
     def result(response):
         if response.headers["content-type"].startswith("text/event-stream"):
-            return json.loads(next(line[6:] for line in response.text.splitlines()
-                                   if line.startswith("data: ")))["result"]
+            return json.loads(
+                next(line[6:] for line in response.text.splitlines() if line.startswith("data: "))
+            )["result"]
         return response.json()["result"]
 
     async def scenario():
-        async with app.router.lifespan_context(app), AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://testserver"
-        ) as client:
+        async with (
+            app.router.lifespan_context(app),
+            AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client,
+        ):
             assert not result(await search(client, "first", "test-a")).get("isError")
             assert memory.recall.call_args.args[0] == AccessContext("scope-a", "scope-a", "scope-a")
             assert not result(await search(client, "second")).get("isError")
