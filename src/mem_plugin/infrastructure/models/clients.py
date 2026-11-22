@@ -88,6 +88,7 @@ class ChatClient(_Client):
         timeout_seconds=30,
         enable_thinking=None,
         reasoning_effort=None,
+        temperature=None,
     ):
         super().__init__(
             provider, base_url, api_key, model, transport, timeout_seconds=timeout_seconds
@@ -100,6 +101,11 @@ class ChatClient(_Client):
         ):
             raise InvalidMemoryInput("reasoning_effort must be low, high or max")
         self._reasoning_effort = reasoning_effort
+        if temperature is not None and (
+            type(temperature) not in (int, float) or not 0 <= temperature <= 2
+        ):
+            raise InvalidMemoryInput("temperature must be a number between 0 and 2")
+        self._temperature = temperature
 
     def complete(
         self, messages: list[dict[str, str]], *, max_output_tokens: int | None = None
@@ -113,6 +119,8 @@ class ChatClient(_Client):
         ):
             raise InvalidMemoryInput("chat messages require valid role and content")
         payload = {"model": self.model, "messages": messages, "stream": False}
+        if self._temperature is not None:
+            payload["temperature"] = self._temperature
         if self._reasoning_effort is not None:
             payload["reasoning_effort"] = self._reasoning_effort
         if self._thinking is not None:

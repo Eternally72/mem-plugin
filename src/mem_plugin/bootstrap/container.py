@@ -62,6 +62,7 @@ def create_model_clients(*, llm_provider: str | None = None) -> ModelClients:
             timeout_seconds=llm.timeout_seconds,
             enable_thinking=llm.enable_thinking,
             reasoning_effort=llm.reasoning_effort,
+            temperature=llm.temperature,
         ),
         RerankClient(rerank.provider, rerank.base_url, rerank.api_key, rerank.model),
     )
@@ -135,7 +136,7 @@ def create_note_service(
 
 
 @contextmanager
-def create_worker(database_url: str, *, environ=None, task_access=None):
+def create_worker(database_url: str, *, environ=None):
     """Register only configured handlers; lifecycle needs no model credentials."""
     from mem_plugin.config.settings import (
         ConfigurationError,
@@ -207,6 +208,7 @@ def create_worker(database_url: str, *, environ=None, task_access=None):
                     timeout_seconds=llm.timeout_seconds,
                     enable_thinking=llm.enable_thinking,
                     reasoning_effort=llm.reasoning_effort,
+                    temperature=llm.temperature,
                 ),
                 tracer,
                 GraphPolicy(
@@ -222,9 +224,7 @@ def create_worker(database_url: str, *, environ=None, task_access=None):
             else None
         )
         yield Worker(
-            PostgresTaskQueue(
-                database.engine, access=task_access, exclude_test_runs=task_access is None
-            ),
+            PostgresTaskQueue(database.engine, exclude_test_runs=True),
             service,
             tracer,
             lease_seconds=settings.lease_seconds,
@@ -244,6 +244,7 @@ def create_worker(database_url: str, *, environ=None, task_access=None):
                     timeout_seconds=llm.timeout_seconds,
                     enable_thinking=llm.enable_thinking,
                     reasoning_effort=llm.reasoning_effort,
+                    temperature=llm.temperature,
                 ),
                 tracer,
                 ConsolidationPolicy(
@@ -273,6 +274,7 @@ def create_scheduler(database_url: str, *, namespace: str | None = None, environ
     from mem_plugin.engine.models import AccessContext
     from mem_plugin.engine.services.scheduling import SchedulingService
     from mem_plugin.infrastructure.observability.postgres_store import PostgresTraceSink
+    from mem_plugin.infrastructure.persistence.postgres.credentials import CredentialStore
     from mem_plugin.infrastructure.persistence.postgres.database import Database
     from mem_plugin.infrastructure.persistence.postgres.unit_of_work import PostgresUnitOfWork
     from mem_plugin.observability.tracing import Tracer
@@ -312,6 +314,9 @@ def create_scheduler(database_url: str, *, namespace: str | None = None, environ
             if lifecycle_settings.enabled
             else None,
             lifecycle_interval=lifecycle_settings.interval_seconds,
+            credential_contexts=CredentialStore(database.engine).contexts
+            if namespace is None
+            else None,
         )
     finally:
         database.close()

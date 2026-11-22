@@ -15,13 +15,23 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 
+# Always use this checkout's environment, including during setup and migration.
+unset VIRTUAL_ENV
+export UV_PROJECT_ENVIRONMENT="$project_dir/.venv"
+
+if [[ "${1:-}" == "--with-postgres" ]]; then
+    shift
+    uv sync --locked --extra mcp --extra postgres
+    docker compose --env-file .env \
+        -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml \
+        up -d --wait --pull missing postgres
+    uv run --no-sync alembic upgrade head
+fi
+
 if [[ ! -x .venv/bin/python ]]; then
     echo "缺少本地 Python 环境，请先执行：uv sync --locked --extra mcp --extra postgres" >&2
     exit 1
 fi
 
-# Ignore another project's activated environment and always use this project's uv environment.
-unset VIRTUAL_ENV
-export UV_PROJECT_ENVIRONMENT="$project_dir/.venv"
 exec uv run --project "$project_dir" --no-sync --python "$project_dir/.venv/bin/python" \
     python -m mem_plugin start "$@"

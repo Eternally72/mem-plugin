@@ -14,6 +14,7 @@ class Scheduler:
         consolidation_enabled=True,
         lifecycle=None,
         lifecycle_interval=3600,
+        credential_contexts=None,
     ):
         self._service, self._contexts = service, contexts
         self._intervals, self._batch = intervals, batch_size
@@ -21,17 +22,28 @@ class Scheduler:
         self._consolidation_enabled = consolidation_enabled
         self._lifecycle, self._lifecycle_interval = lifecycle, lifecycle_interval
         self._next_lifecycle = 0.0
+        self._credential_contexts = credential_contexts
 
     def run_once(self, *, force=False):
         now = monotonic()
+        levels = [
+            index
+            for index, _ in enumerate(self._intervals if self._consolidation_enabled else ())
+            if force or now >= self._next[index]
+        ]
+        lifecycle_due = self._lifecycle is not None and (force or now >= self._next_lifecycle)
+        if not levels and not lifecycle_due:
+            return 0
+        contexts = self._contexts
+        if self._credential_contexts is not None:
+            contexts = (*contexts, *self._credential_contexts())
         count = 0
-        for index, interval in enumerate(self._intervals if self._consolidation_enabled else ()):
-            if force or now >= self._next[index]:
-                for context in self._contexts:
-                    count += self._service.enqueue_due(context, index + 1, self._batch)
-                self._next[index] = now + interval
-        if self._lifecycle is not None and (force or now >= self._next_lifecycle):
-            for context in self._contexts:
+        for index in levels:
+            for context in contexts:
+                count += self._service.enqueue_due(context, index + 1, self._batch)
+            self._next[index] = now + self._intervals[index]
+        if lifecycle_due:
+            for context in contexts:
                 count += self._lifecycle.schedule(context, self._batch)
             self._next_lifecycle = now + self._lifecycle_interval
         return count

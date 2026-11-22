@@ -16,14 +16,13 @@ from pathlib import Path
 from threading import Event
 from urllib.parse import urlsplit
 
-from mem_plugin.config.logging import configure_logging
+from mem_plugin.config.logging import configure_logging, terminal_line
+from mem_plugin.config.private_file import write_private_json
 from mem_plugin.config.settings import (
     ConfigurationError,
     load_environment,
     load_settings,
-    load_test_runs_directory,
 )
-from mem_plugin.config.test_runs import _private_json
 from mem_plugin.engine.errors import MemoryError
 
 logger = logging.getLogger("mem_plugin.bootstrap.runtime")
@@ -36,7 +35,7 @@ def _relay_log(role, source):
         if not line:
             break
         if line.startswith("[mem_plugin."):
-            print(f"[{role}] {line}", end="", file=sys.stderr, flush=True)
+            print(terminal_line(line, role=role), end="", file=sys.stderr, flush=True)
 
 
 def check_port(url, *, host=None, port=None):
@@ -103,7 +102,7 @@ def supervise(commands, *, env, directory, url, token, startup_timeout=45, stop=
         check_port(url, **({"host": listen[0], "port": listen[1]} if listen else {}))
 
         def status():
-            _private_json(
+            write_private_json(
                 directory / "runtime.json",
                 {
                     "status": state,
@@ -206,7 +205,7 @@ def main(argv=None):
                 for role in ("api", "worker", "scheduler")
             },
             env=env,
-            directory=load_test_runs_directory(environ=env).parent / "runtime",
+            directory=Path("data/runtime").absolute(),
             url=settings.mcp_url,
             token=settings.mcp_token,
             listen=(settings.host, settings.port),
