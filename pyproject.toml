@@ -25,7 +25,6 @@ mem-plugin = "mem_plugin.bootstrap.cli:main"
 mem-plugin-api = "mem_plugin.bootstrap.api:main"
 mem-plugin-worker = "mem_plugin.bootstrap.worker:main"
 mem-plugin-scheduler = "mem_plugin.bootstrap.scheduler:main"
-mem-plugin-test = "mem_plugin.bootstrap.test_run:main"
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.12,<1"]

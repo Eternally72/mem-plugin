@@ -36,13 +36,6 @@ def load_environment(*, environ=None, env_file=None) -> dict[str, str]:
     return _environment(environ, env_file)
 
 
-def load_test_runs_directory(*, environ=None, env_file=None) -> Path:
-    value = _environment(environ, env_file).get("TEST_RUNS_DIR", "data/test-runs")
-    if not value.strip():
-        raise ConfigurationError("TEST_RUNS_DIR must not be blank")
-    return Path(value).absolute()
-
-
 @dataclass(frozen=True, slots=True)
 class DatabaseSettings:
     url: str = field(repr=False)
@@ -134,10 +127,11 @@ class ModelSettings:
     timeout_seconds: float = 30
     enable_thinking: bool | None = None
     reasoning_effort: str | None = None
+    temperature: float | None = None
 
     def __post_init__(self):
-        if self.provider not in {"bailian", "deepseek"}:
-            raise ConfigurationError("supported LLM providers: bailian, deepseek")
+        if self.provider not in {"bailian", "deepseek", "openai_compatible"}:
+            raise ConfigurationError("unsupported LLM provider")
         _model_url(self.base_url)
         if not 1 <= self.timeout_seconds <= 300:
             raise ConfigurationError("model timeout must be 1..300 seconds")
@@ -158,8 +152,17 @@ def load_llm_settings(
 ) -> ModelSettings:
     env = _environment(environ, env_file)
     selected = provider if provider is not None else env.get("LLM_PROVIDER", "deepseek")
+    if selected == "openai_compatible":
+        return ModelSettings(
+            provider=selected,
+            base_url=env.get("MEM_PLUGIN_OPENAI_BASE_URL", ""),
+            model=env.get("MEM_PLUGIN_OPENAI_MODEL", ""),
+            api_key=env.get("MEM_PLUGIN_OPENAI_API_KEY", ""),
+            timeout_seconds=_number(env, "MEM_PLUGIN_OPENAI_TIMEOUT_SECONDS", 90, float, 1, 300),
+            temperature=_number(env, "MEM_PLUGIN_OPENAI_TEMPERATURE", 0, float, 0, 2),
+        )
     if selected not in {"bailian", "deepseek"}:
-        raise ConfigurationError("LLM_PROVIDER must be bailian or deepseek")
+        raise ConfigurationError("LLM_PROVIDER must be bailian, deepseek or openai_compatible")
     prefix = selected.upper() + "_LLM_"
     default_url = (
         "https://api.deepseek.com"

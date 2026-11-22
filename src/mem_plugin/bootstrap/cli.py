@@ -9,6 +9,10 @@ def main(argv=None):
         from mem_plugin.bootstrap.runtime import main as run
 
         return run(args[1:])
+    if args and args[0] == "credentials":
+        from mem_plugin.bootstrap.credentials import main as credentials
+
+        return credentials(args[1:])
     from mem_plugin.bootstrap.api import main as api
 
     return api(args)

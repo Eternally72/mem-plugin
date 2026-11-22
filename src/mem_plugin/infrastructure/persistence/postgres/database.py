@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from mem_plugin.engine.errors import MemoryStorageError
 
-SCHEMA_REVISION = "0010"
+SCHEMA_REVISION = "0011"
 
 
 class Database:

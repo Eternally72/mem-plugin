@@ -3,6 +3,7 @@
 import argparse
 import logging
 from collections.abc import Sequence
+from contextlib import ExitStack
 from importlib import import_module
 
 from mem_plugin.bootstrap.container import create_note_service
@@ -22,6 +23,8 @@ def main(argv: Sequence[str] | None = None, *, environ=None) -> None:
         for dependency in ("dotenv", "pgvector", "psycopg", "sqlalchemy"):
             import_module(dependency)
 
+        from mem_plugin.infrastructure.persistence.postgres.credentials import CredentialStore
+        from mem_plugin.infrastructure.persistence.postgres.database import Database
         from mem_plugin.interfaces.http.server import run_server
         from mem_plugin.interfaces.mcp.context import ToolIdentity
     except ModuleNotFoundError as exc:
@@ -45,7 +48,12 @@ def main(argv: Sequence[str] | None = None, *, environ=None) -> None:
         parser.error(str(exc))
     configure_logging()
     try:
-        with create_note_service(settings.database_url, environ=environ) as engine:
+        with ExitStack() as resources:
+            engine = resources.enter_context(
+                create_note_service(settings.database_url, environ=environ)
+            )
+            database = Database(settings.database_url)
+            resources.callback(database.close)
             logging.getLogger("mem_plugin.bootstrap.api").info(
                 "memory_api_started url=%s namespaces=%s llm_provider=%s llm_model=%s",
                 settings.mcp_url,
@@ -66,6 +74,7 @@ def main(argv: Sequence[str] | None = None, *, environ=None) -> None:
                 mcp_url=settings.mcp_url,
                 token=settings.mcp_token,
                 identity=identity,
+                resolve_scoped=CredentialStore(database.engine).resolve,
             )
     except MemoryStorageError as exc:
         parser.exit(1, f"Unable to initialize memory service: {exc}\n")

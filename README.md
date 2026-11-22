@@ -91,7 +91,8 @@ uv run --no-sync python scripts/init_env.py
 | `MEM_PLUGIN_USER_ID`、`MEM_PLUGIN_AGENT_ID` | 当前凭证绑定的用户与 Agent 身份 |
 | `MEM_PLUGIN_NAMESPACES`、`MEM_PLUGIN_DOMAINS` | namespace 白名单与领域授权 |
 | `EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL`、`EMBEDDING_DIMENSION` | 百炼向量服务配置 |
-| `LLM_PROVIDER` | 选择 `deepseek` 或 `bailian` |
+| `LLM_PROVIDER` | 支持 `deepseek`、`bailian` 和 `openai_compatible` |
+| `MEM_PLUGIN_OPENAI_BASE_URL`、`MEM_PLUGIN_OPENAI_MODEL`、`MEM_PLUGIN_OPENAI_API_KEY`、`MEM_PLUGIN_OPENAI_TEMPERATURE` | 在插件自己的 `.env` 中设置记忆模型的接口地址、名称、密钥和温度 |
 | `DEEPSEEK_LLM_BASE_URL`、`DEEPSEEK_LLM_API_KEY`、`DEEPSEEK_LLM_MODEL` | DeepSeek LLM 配置 |
 | `BAILIAN_LLM_BASE_URL`、`BAILIAN_LLM_API_KEY`、`BAILIAN_LLM_MODEL` | 百炼 LLM 配置 |
 | `RETRIEVAL_RERANK_ENABLED` | 可选重排开关；启用时填写独立的 `RERANK_*` 配置 |
@@ -112,7 +113,7 @@ uv run --no-sync alembic upgrade head
 
 数据库归属 `mem-plugin` Compose 项目，使用持久化卷，默认映射至 `127.0.0.1:55433`。部署配置固定镜像摘要并优先复用本机镜像；首次安装若无对应镜像，需先使用 `docker pull` 拉取 `deploy/docker-compose.yml` 中 `postgres.image` 指定的完整地址。
 
-迁移必须在服务启动前单独执行。修改数据库端口时，同步调整 `DATABASE_URL`。
+也可以运行 `./start.sh --with-postgres`，由脚本准备本地依赖、启动数据库、应用迁移并启动三个服务。修改数据库端口时，同步调整 `DATABASE_URL`。
 
 ### 4. 启动与验证
 
@@ -131,7 +132,7 @@ uv run --no-sync python examples/client.py
 
 `/health` 仅表示 HTTP 进程存活。客户端示例中的搜索会按配置使用检索模型。
 
-终端持续显示带进程角色和 Trace ID 的记忆操作及后台任务日志，日志文件默认位于 `data/runtime/`。按 Ctrl+C 停止本次启动的三个 Python 进程，数据库继续运行。完成首次初始化后，日常启动执行 `./start.sh`；升级涉及 Schema 变更时，先执行迁移。
+终端持续显示带进程角色和 Trace ID 的日志，文件默认位于 `data/runtime/`。从插件目录运行 `./stop.sh`，或在启动终端按 Ctrl+C，可正常停止 API、Worker 和 Scheduler。PostgreSQL 继续运行。完成首次初始化后，日常启动执行 `./start.sh`。升级涉及 Schema 变更时，先执行迁移。
 
 ### 5. 连接 Agent
 
@@ -162,11 +163,19 @@ uv run --no-sync python examples/client.py
 
 ### 6. 隔离测试轮次
 
-普通启动使用 `.env` 中配置的固定空间，多次连接会访问该空间已有的记忆。需要独立对比不同测试轮次时，为每轮创建单独的运行配置：
+常驻服务可以在同一个 MCP URL 上为不同用户、服务或实验提供独立记忆。由运维端为每个标签签发一份凭证。
 
 ```bash
-uv run --no-sync mem-plugin-test create --name round-a
-uv run --no-sync mem-plugin-test start <run_id>
+uv run --no-sync mem-plugin credentials issue --label research-round-a \
+  --ttl-hours 168 --output data/credentials/research-round-a.json
 ```
 
-将生成的私有 `connection.json` 中 URL 与 Token 配置给待测 Agent。不同 `run_id` 的记忆相互隔离，同一轮次重启保留记忆，无需清空数据库。
+客户端读取私有连接文件中的 URL，并在每次 MCP HTTP 请求中发送 `Authorization` Bearer 请求头。Token 在服务端绑定标签和命名空间。工具参数 `namespace` 可以省略，也可以使用凭证绑定的标签。服务拒绝其它空间。部署到其他机器可访问的地址时，使用 HTTPS，并将公开的 MCP URL 填到 `MEM_PLUGIN_MCP_URL`。
+
+默认有效期为 7 天。轮换立即使旧 Token 失效，并保留标签对应的记忆。撤销后，该标签需要重新轮换才能访问。原有 `MEM_PLUGIN_MCP_TOKEN` 对应部署者自己的配置空间。
+
+```bash
+uv run --no-sync mem-plugin credentials rotate --label research-round-a \
+  --ttl-hours 168 --output data/credentials/research-round-a.json
+uv run --no-sync mem-plugin credentials revoke --label research-round-a
+```

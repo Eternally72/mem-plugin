@@ -2,11 +2,13 @@
 
 import json
 import signal
+from io import StringIO
 from unittest.mock import Mock
 
 import pytest
 
 from mem_plugin.bootstrap import runtime
+from mem_plugin.config import logging as log_config
 from mem_plugin.config.settings import ConfigurationError
 
 
@@ -47,3 +49,21 @@ def test_occupied_port_does_not_spawn_or_terminate_anything(tmp_path, monkeypatc
             {}, env={}, directory=tmp_path, url="http://127.0.0.1:8101/mcp", token="private-token"
         )
     spawn.assert_not_called()
+
+
+def test_terminal_relay_colors_fields_without_touching_source(monkeypatch):
+    line = "[mem_plugin.bootstrap.worker] 2026-11-20T19:00:00+0800 WARNING task_outcome=failed\n"
+    terminal = StringIO()
+    terminal.isatty = lambda: True
+    monkeypatch.setattr(log_config.sys, "stderr", terminal)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm")
+    source = StringIO(line)
+    runtime._relay_log("worker", source)
+    rendered = terminal.getvalue()
+    assert "\x1b[35m[worker]\x1b[0m" in rendered
+    assert "\x1b[33mWARNING\x1b[0m" in rendered
+    assert "\x1b[36mtask_outcome\x1b[0m" in rendered
+    assert source.getvalue() == line
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert log_config.terminal_line(line, role="worker") == "[worker] " + line

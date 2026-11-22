@@ -1,6 +1,6 @@
 # PostgreSQL 迁移
 
-此目录是 Alembic 唯一 Schema 入口，revision 为 `0001`～`0010` 的线性链。
+此目录是 Alembic 唯一 Schema 入口，revision 为 `0001`～`0011` 的线性链。
 
 在仓库根目录安装 `postgres` extra、配置私有 `DATABASE_URL` 后执行：
 

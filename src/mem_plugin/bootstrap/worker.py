@@ -18,7 +18,7 @@ from mem_plugin.engine.errors import MemoryStorageError
 logger = logging.getLogger("mem_plugin.bootstrap.worker")
 
 
-def main(argv: Sequence[str] | None = None, *, environ=None, task_access=None) -> None:
+def main(argv: Sequence[str] | None = None, *, environ=None) -> None:
     parser = argparse.ArgumentParser(description="Process PostgreSQL memory tasks")
     parser.add_argument("--once", action="store_true", help="Claim at most one available task")
     args = parser.parse_args(argv)
@@ -30,11 +30,10 @@ def main(argv: Sequence[str] | None = None, *, environ=None, task_access=None) -
             load_database_settings(environ=environ),
             load_worker_settings(environ=environ),
         )
-        with create_worker(database.url, environ=environ, task_access=task_access) as worker:
+        with create_worker(database.url, environ=environ) as worker:
             logger.info(
-                "memory_worker_started poll_seconds=%s namespace=%s",
+                "memory_worker_started poll_seconds=%s",
                 settings.poll_seconds,
-                task_access.namespace if task_access else "configured",
             )
             for signum in (signal.SIGINT, signal.SIGTERM):
                 previous[signum] = signal.signal(signum, lambda *_: stop.set())

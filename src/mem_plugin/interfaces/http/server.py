@@ -15,8 +15,13 @@ def run_server(
     identity: ToolIdentity,
     host: str = "127.0.0.1",
     port: int = 8000,
+    resolve_scoped=None,
 ) -> None:
     """Serve the configured endpoint; every MCP request requires the bearer credential."""
     uvicorn.run(
-        create_app(memory, identity=identity, mcp_url=mcp_url, token=token), host=host, port=port
+        create_app(
+            memory, identity=identity, mcp_url=mcp_url, token=token, resolve_scoped=resolve_scoped
+        ),
+        host=host,
+        port=port,
     )

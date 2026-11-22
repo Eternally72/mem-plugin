@@ -55,6 +55,44 @@ def test_chat_payload_and_usage_are_correct_without_network_calls():
     assert key == "secret" and payload["model"] == "deepseek-flash" and payload["stream"] is False
 
 
+@pytest.mark.parametrize("plugin_key", ["test-only", ""])
+def test_memory_chat_uses_plugin_config(tmp_path, monkeypatch, plugin_key):
+    from mem_plugin.bootstrap.container import create_model_clients
+
+    plugin = tmp_path / "plugin"
+    plugin.mkdir()
+    plugin_env = {
+        "LLM_PROVIDER": "openai_compatible",
+        "MEM_PLUGIN_OPENAI_BASE_URL": "http://memory.example.test/v1",
+        "MEM_PLUGIN_OPENAI_MODEL": "memory-model",
+        "MEM_PLUGIN_OPENAI_API_KEY": plugin_key,
+        "MEM_PLUGIN_OPENAI_TEMPERATURE": "0",
+    }
+    (plugin / ".env").write_text("".join(f"{k}={v}\n" for k, v in plugin_env.items()))
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=benchmark-file-key\n")
+    monkeypatch.chdir(plugin)
+    for key in plugin_env:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://agent.example.test/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "agent-model")
+    monkeypatch.setenv("OPENAI_API_KEY", "agent-key")
+    monkeypatch.setenv("OPENAI_TEMPERATURE", "1")
+    chat = create_model_clients().llm
+    transport = Mock(return_value={"choices": [{"message": {"content": "ok"}}]})
+    chat._transport = transport
+    messages = [{"role": "user", "content": "test"}]
+    if not plugin_key:
+        with pytest.raises(ModelProviderError, match="configured"):
+            chat.complete(messages)
+        transport.assert_not_called()
+        return
+    chat.complete(messages)
+    url, key, body = transport.call_args.args
+    assert (url, key) == ("http://memory.example.test/v1/chat/completions", plugin_key)
+    assert body["model"] == "memory-model" and body["temperature"] == 0
+    assert "thinking" not in body and "enable_thinking" not in body
+
+
 def test_unconfigured_provider_never_sends_a_request():
     transport = Mock()
     for key, model in [("", "deepseek-flash"), ("secret", "")]:

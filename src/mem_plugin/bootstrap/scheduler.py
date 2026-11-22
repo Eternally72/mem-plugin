@@ -26,7 +26,9 @@ def main(argv=None, *, environ=None):
     handlers = {}
     try:
         with create_scheduler(
-            load_database_settings(environ=environ).url, namespace=args.namespace, environ=environ
+            load_database_settings(environ=environ).url,
+            namespace=args.namespace,
+            environ=environ,
         ) as scheduler:
             logger.info("memory_scheduler_started")
             if args.memory_id:
